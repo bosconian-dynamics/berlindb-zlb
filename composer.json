@@ -1,0 +1,24 @@
+{
+    "name": "bosconian-dynamics/berlindb-zlb",
+    "description": "A utility library for WordPress & BerlinDB.",
+    "license": "GPLv2",
+    "authors": [
+        {
+            "name": "Adam Bosco",
+            "email": "github@adambos.co"
+        }
+    ],
+    "type": "library",
+    "autoload": {
+		"files": [ "includes/autoloader.php" ]
+    },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/berlindb/core"
+		}
+    ],
+    "require": {
+        "berlindb/core": "dev-release/2.0.0"
+    }
+}

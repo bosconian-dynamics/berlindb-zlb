@@ -1,0 +1,51 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "89e5069685c3d5b672838ead7b19f922",
+    "packages": [
+        {
+            "name": "berlindb/core",
+            "version": "dev-release/2.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/berlindb/core.git",
+                "reference": "f902fb33d7701a5fb3bfa48074059d54712cbd1d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/berlindb/core/zipball/f902fb33d7701a5fb3bfa48074059d54712cbd1d",
+                "reference": "f902fb33d7701a5fb3bfa48074059d54712cbd1d",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "BerlinDB\\": "src/"
+                }
+            },
+            "license": [
+                "GPL-2.0-only"
+            ],
+            "description": "A collection of PHP classes and functions that aims to provide an ORM-like experience and interface to WordPress database tables.",
+            "support": {
+                "source": "https://github.com/berlindb/core/tree/release/2.0.0",
+                "issues": "https://github.com/berlindb/core/issues"
+            },
+            "time": "2021-01-15T04:45:20+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {
+        "berlindb/core": 20
+    },
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": [],
+    "plugin-api-version": "1.1.0"
+}
