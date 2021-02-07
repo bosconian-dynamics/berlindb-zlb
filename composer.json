@@ -1,7 +1,7 @@
 {
     "name": "bosconian-dynamics/berlindb-zlb",
     "description": "A utility library for WordPress & BerlinDB.",
-    "license": "GPLv2",
+    "license": "MIT",
     "authors": [
         {
             "name": "Adam Bosco",
