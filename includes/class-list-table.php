@@ -1,5 +1,4 @@
 <?php
-
 namespace BosconianDynamics\BerlinDB_Zlb;
 
 defined( 'ABSPATH' ) || exit;
@@ -7,17 +6,72 @@ defined( 'ABSPATH' ) || exit;
 if( ! class_exists( '\\WP_List_Table' ) )
 	require_once ABSPATH . ' /wp-admin/includes/class-wp-list-table.php';
 
+/**
+ * A WP_List_Table implementation with BerlinDB bindings.
+ *
+ * @property array $actions A list of action configuration arrays.
+ */
 class List_Table extends \WP_List_Table {
 	//  protected $compat_fields = [ '_args', '_pagination_args', 'screen', '_actions', '_pagination' ];
+
+	/**
+	 * A list of action configuration arrays.
+	 *
+	 * @var array
+	 */
 	protected $actions      = [];
-	protected $bulk_actions = [];
+
+	/**
+	 * An associative array mapping column identifiers to column configuration arrays.
+	 *
+	 * @var array
+	 */
 	protected $columns      = [];
+
+	/**
+	 * A list of column identifiers determining the order in which columns should be displayed. Any
+	 * configured columns whose identifiers do no appear in the list will be appended to the end of
+	 * the display in registration order.
+	 *
+	 * @var array
+	 */
 	protected $column_order = [];
+
+	/**
+	 * Key of the transient in which admin notices for this list table are stored.
+	 *
+	 * @var string
+	 */
 	protected $opt_notices  = '';
+
+	/**
+	 * Key of the usermeta setting storing a user's prefered number of rows to print per page for
+	 * this table.
+	 *
+	 * @var string
+	 */
 	protected $opt_per_page = '';
+
+	/**
+	 * The BerlinDB Query for this table.
+	 *
+	 * @var \BerlinDB\Database\Query
+	 */
 	protected $query;
+
+	/**
+	 * The BerlinDB Schema for this table.
+	 *
+	 * @var \BerlinDB\Database\Schema
+	 */
 	protected $schema;
 
+	/**
+	 * Constructor
+	 *
+	 * @param \BerlinDB\Database\Query $query The subject model's query.
+	 * @param array                    $args Configuration arguments.
+	 */
 	public function __construct( $query, $args = [] ) {
 		$defaults = [
 			'actions'         => [],
@@ -34,7 +88,7 @@ class List_Table extends \WP_List_Table {
 		];
 
 		if( isset( $args['labels'] ) )
-			$args['labels'] = wp_parse_args( $args['labels'], $defaults['labels'] );
+			$args['labels'] = \wp_parse_args( $args['labels'], $defaults['labels'] );
 
 		$args = \wp_parse_args( $args, $defaults );
 
@@ -70,7 +124,7 @@ class List_Table extends \WP_List_Table {
 			$this->column_order = $args['column_order'];
 
 		/**
-		 *
+		 * Options
 		 */
 		\add_screen_option(
 			'per_page',
@@ -93,6 +147,13 @@ class List_Table extends \WP_List_Table {
 		$this->run_action( $this->current_action() );
 	}
 
+	/**
+	 * Register a new action.
+	 *
+	 * @param string $name Action identifier.
+	 * @param array  $args Action configuration.
+	 * @return void
+	 */
 	public function add_action( $name, $args = [] ) {
 		if( ! isset( $args['name'] ) )
 			$args['name'] = $name;
@@ -127,6 +188,12 @@ class List_Table extends \WP_List_Table {
 		$this->column_order[]   = $name;
 	}
 
+	/**
+	 * Retrieve the string identifier associated with the data.
+	 *
+	 * @param boolean $plural Whether to retrieve the plural identifier.
+	 * @return string The identifier string.
+	 */
 	public function get_item_name( $plural = false ) {
 		if( $plural )
 			return $this->_args['plural'];
@@ -134,12 +201,18 @@ class List_Table extends \WP_List_Table {
 		return $this->_args['singular'];
 	}
 
+	/**
+	 * Check if this list table has a registered configuration for an identifier.
+	 *
+	 * @param string $name The column identifier.
+	 * @return boolean
+	 */
 	public function has_column( $name ) {
 		return isset( $this->columns[ $name ] );
 	}
 
 	/**
-	 * Retrieve a column configuration array for a schema column
+	 * Retrieve a column configuration for a schema column.
 	 *
 	 * @param string $name The name of the schema column.
 	 * @return array A column configuration array, or an empty array if none was found.
@@ -160,10 +233,21 @@ class List_Table extends \WP_List_Table {
 		return [];
 	}
 
+	/**
+	 * Retrieve the number of rows to display per page from usermeta.
+	 *
+	 * @return int
+	 */
 	public function get_rows_per_page() {
 		return $this->get_items_per_page( $this->opt_per_page, 20 );
 	}
 
+	/**
+	 * Retrieve an action configuration by identifier.
+	 *
+	 * @param string $name The action identifier.
+	 * @return array|null
+	 */
 	protected function get_action( $name ) {
 		foreach( $this->actions as $action ) {
 			if( $action['name'] === $name )
@@ -173,6 +257,14 @@ class List_Table extends \WP_List_Table {
 		return null;
 	}
 
+	/**
+	 * Execute action callback and hooks for the given action identifier. Redirects back to the
+	 * current URL with action-related query variables stripped off of the query string after all
+	 * hooks have completed.
+	 *
+	 * @param string $name
+	 * @return void
+	 */
 	public function run_action( $name ) {
 		$action = $this->get_action( $name );
 		$value  = null;
@@ -187,13 +279,18 @@ class List_Table extends \WP_List_Table {
 		if( isset( $action['callback'] ) )
 			$value = call_user_func( $action['callback'], $data, $name );
 
-		do_action( 'bdb_list_table_action', $name, $value );
-		do_action( "bdb_list_table_action_{$name}", $value );
+		do_action( 'bdbz_list_table_action', $name, $value );
+		do_action( "bdbz_list_table_action_{$name}", $value );
 
 		\wp_safe_redirect( \remove_query_arg( [ 'action', 'action_data' ] ) );
 		exit;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
 	public function prepare_items() {
 		// Retrieve pagination values.
 		$per_page = $this->get_rows_per_page();
@@ -205,6 +302,7 @@ class List_Table extends \WP_List_Table {
 			'offset' => $offset,
 		];
 
+		// Ordering parameters.
 		if( ! empty( $_GET['orderby'] ) ) {
 			$orderby = \sanitize_key( \wp_unslash( $_GET['orderby'] ) );
 
@@ -236,31 +334,34 @@ class List_Table extends \WP_List_Table {
 		$this->items = $rows;
 	}
 
+	/**
+	 * Retrieves bulk action configurations.
+	 *
+	 * @return void
+	 */
 	protected function get_bulk_actions() {
-		$actions = array_filter(
-			$this->actions,
-			function( $action ) {
-				return ! empty( $action['bulk'] );
-			}
-		);
-
 		return array_reduce(
-			$actions,
+			$this->actions,
 			function( $actions, $action ) {
-				$actions[ $action['name'] ] = $action['label'];
+				if( ! empty( $action['bulk'] ) )
+					$actions[ $action['name'] ] = $action['label'];
+
 				return $actions;
 			},
 			[]
 		);
-
-    return $actions;
 	}
 
-	protected function get_column_by( $value, $column_name = null ) {
-		if( empty( $column_name ) )
-			$column_name = $this->get_primary_column_name();
-
-		$columns = array_values( $this->filter_columns( [ $column_name => $value ] ) );
+	/**
+	 * Retrieve the first column configuration with the specified key/value pair. If no key is
+	 * specified, defaults to matching against the column identifier.
+	 *
+	 * @param string $value The configuration property value to match against.
+	 * @param string $key The configuration property key to match against. Defaults to `name`.
+	 * @return array|null
+	 */
+	protected function get_column_by( $value, $key = 'name' ) {
+		$columns = array_values( $this->filter_columns( [ $key => $value ] ) );
 
 		if( count( $columns ) )
 			return $columns[0];
@@ -268,6 +369,13 @@ class List_Table extends \WP_List_Table {
 		return null;
 	}
 
+	/**
+	 * Retrieve column definitions that have properties matching a set of key/value pairs.
+	 *
+	 * @param array       $properties
+	 * @param string|null $field A property key.
+	 * @return array An associative array mapping column names to column configurations for matching columns. If $field is set,
+	 */
 	protected function filter_columns( $properties = [], $field = null ) {
 		$columns = $this->columns;
 
@@ -302,8 +410,8 @@ class List_Table extends \WP_List_Table {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * @param BerlinDB\Database\Row $item
-	 * @param string                $column_name
+	 * @param BerlinDB\Database\Row $item Shaped item object.
+	 * @param string                $column_name The column identifier.
 	 * @return mixed
 	 */
 	public function column_default( $item, $column_name ) {
@@ -327,7 +435,14 @@ class List_Table extends \WP_List_Table {
 		return $value;
 	}
 
-	function column_cb( $item ) {
+	/**
+	 * Checkbox column value callback. Prints the markup for row selection for the column identified
+	 * as `cb`.
+	 *
+	 * @param \BerlinDB\Database\Row $item Shaped item.
+	 * @return void
+	 */
+	protected function column_cb( $item ) {
 		$primary_column = $this->get_primary_column_name();
 		$item_key       = $item->$primary_column;
 		?>
@@ -345,6 +460,11 @@ class List_Table extends \WP_List_Table {
 		submit_button( __( 'Filter' ), '', 'filter_action', false, array( 'id' => 'post-query-submit' ) );
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return array
+	 */
 	public function get_columns() {
 		$columns = [
 			'cb' => true,
@@ -360,10 +480,20 @@ class List_Table extends \WP_List_Table {
 		return $columns;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
 	protected function get_hidden_columns() {
 		return [];
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
 	protected function get_sortable_columns() {
 		return array_map(
 			function( $column ) {
@@ -373,19 +503,28 @@ class List_Table extends \WP_List_Table {
 		);
 	}
 
+	/**
+	 * Retrieve the configuration for the primary column.
+	 *
+	 * @return array
+	 */
 	protected function get_primary_col() {
 		static $column;
 
-		if( ! isset( $column ) ) {
-			$columns = array_values( $this->filter_columns( [ 'primary' => true ] ) );
-
-			if( count( $columns ) )
-				$column = array_values( $columns )[0];
-		}
+		if( ! isset( $column ) )
+			$column = $this->get_column_by( true, 'primary' );
 
 		return $column;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param \BerlinDB\Database\Row $item Shaped item.
+	 * @param string                 $column_name Current column identifier.
+	 * @param string                 $primary Primary column identifier.
+	 * @return void
+	 */
 	protected function handle_row_actions( $item, $column_name, $primary ) {
 		$actions = array_reduce(
 			$this->actions,
@@ -421,6 +560,13 @@ class List_Table extends \WP_List_Table {
 		return $this->row_actions( $actions );
 	}
 
+	/**
+	 * Constructs a URL which will execute a specified action with an optional payload.
+	 *
+	 * @param string|array|null $action_name Action identifier or configuration object.
+	 * @param  mixed            $data Data payload.
+	 * @return string The URL.
+	 */
 	public function get_action_url( $action_name = null, $data = null ) {
 		$url = '?' . $_SERVER['QUERY_STRING'];
 
@@ -442,6 +588,11 @@ class List_Table extends \WP_List_Table {
 		return $url;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
 	protected function get_default_primary_column_name() {
 		$column = $this->get_primary_col();
 
