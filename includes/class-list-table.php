@@ -189,6 +189,218 @@ class List_Table extends \WP_List_Table {
 	}
 
 	/**
+	 * Checkbox column value callback. Prints the markup for row selection for the column identified
+	 * as `cb`.
+	 *
+	 * @param \BerlinDB\Database\Row $item Shaped item.
+	 * @return void
+	 */
+	protected function column_cb( $item ) {
+		$primary_column = $this->get_primary_column_name();
+		$item_key       = $item->$primary_column;
+		?>
+		<label class="screen-reader-text" for="cb-select-<?php echo $item_key; ?>">
+				<?php
+						/* translators: %s: Post title. */
+						printf( __( 'Select Item %s' ), $item_key );
+				?>
+		</label>
+		<input id="cb-select-<?php echo $item_key; ?>" type="checkbox" name="<?php echo $primary_column; ?>[]" value="<?php echo $item_key; ?>" />
+		<?php
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param BerlinDB\Database\Row $item Shaped item object.
+	 * @param string                $column_name The column identifier.
+	 * @return mixed
+	 */
+	public function column_default( $item, $column_name ) {
+		$value  = isset( $item->$column_name ) ? $item->$column_name : null;
+		$column = $this->get_column_by( $column_name, 'name' );
+
+		if( $column ) {
+			if( isset( $column['value'] ) ) {
+				if( is_callable( $column['value'] ) )
+					$value = call_user_func( $column['value'], $value, $item, $column_name );
+				elseif( ! isset( $value ) )
+					$value = $column['value'];
+			}
+
+			if( ! isset( $value ) && isset( $column['default'] ) )
+				$value = $column['default'];
+		}
+
+		$value = \apply_filters( "bdb_list_table_field_value_{$column_name}", $value, $item, $column_name );
+
+		return $value;
+	}
+
+	protected function extra_tablenav( $which ) {
+		submit_button( __( 'Filter' ), '', 'filter_action', false, array( 'id' => 'post-query-submit' ) );
+	}
+
+	/**
+	 * Retrieve column definitions that have properties matching a set of key/value pairs.
+	 *
+	 * @param array       $properties
+	 * @param string|null $field A property key.
+	 * @return array An associative array mapping column names to column configurations for matching columns. If $field is set,
+	 */
+	protected function filter_columns( $properties = [], $field = null ) {
+		$columns = $this->columns;
+
+		if( count( $properties ) ) {
+			$columns = array_filter(
+				$columns,
+				function( $column ) use( $properties ) {
+					foreach( $properties as $key => $value ) {
+						if( ! isset( $column[ $key ] ) || $column[ $key ] !== $value )
+							return false;
+					}
+
+					return true;
+				}
+			);
+		}
+
+		if( $field ) {
+			$columns = array_reduce(
+				$columns,
+				function( $fields, $column ) use( $field ) {
+					$fields[] = $column[ $field ];
+					return $fields;
+				},
+				[]
+			);
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * Retrieve an action configuration by identifier.
+	 *
+	 * @param string $name The action identifier.
+	 * @return array|null
+	 */
+	protected function get_action( $name ) {
+		foreach( $this->actions as $action ) {
+			if( $action['name'] === $name )
+				return $action;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Constructs a URL which will execute a specified action with an optional payload.
+	 *
+	 * @param string|array|null $action_name Action identifier or configuration object.
+	 * @param  mixed            $data Data payload.
+	 * @return string The URL.
+	 */
+	public function get_action_url( $action_name = null, $data = null ) {
+		$url = '?' . $_SERVER['QUERY_STRING'];
+
+		if( isset( $action_name ) ) {
+			if( is_array( $action_name ) )
+				$action_name = $action_name['name'];
+
+			$url = \add_query_arg( 'action', $action_name, $url );
+		}
+
+		if( isset( $data ) ) {
+			$url = \add_query_arg(
+				'action_data',
+				$data,
+				$url
+			);
+		}
+
+		return $url;
+	}
+
+	/**
+	 * Retrieves bulk action configurations.
+	 *
+	 * @return void
+	 */
+	protected function get_bulk_actions() {
+		return array_reduce(
+			$this->actions,
+			function( $actions, $action ) {
+				if( ! empty( $action['bulk'] ) )
+					$actions[ $action['name'] ] = $action['label'];
+
+				return $actions;
+			},
+			[]
+		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return array
+	 */
+	public function get_columns() {
+		$columns = [
+			'cb' => true,
+		];
+
+		foreach( $this->column_order as $name ) {
+			if( ! isset( $this->columns[ $name ] ) )
+				continue;
+
+			$columns[ $name ] = $this->columns[ $name ]['label'];
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * Retrieve the first column configuration with the specified key/value pair. If no key is
+	 * specified, defaults to matching against the column identifier.
+	 *
+	 * @param string $value The configuration property value to match against.
+	 * @param string $key The configuration property key to match against. Defaults to `name`.
+	 * @return array|null
+	 */
+	protected function get_column_by( $value, $key = 'name' ) {
+		$columns = array_values( $this->filter_columns( [ $key => $value ] ) );
+
+		if( count( $columns ) )
+			return $columns[0];
+
+		return null;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
+	protected function get_default_primary_column_name() {
+		$column = $this->get_primary_col();
+
+		if( isset( $column ) && isset( $column['name'] ) )
+			return $column['name'];
+
+		return parent::get_default_primary_column_name();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @return void
+	 */
+	protected function get_hidden_columns() {
+		return [];
+	}
+
+	/**
 	 * Retrieve the string identifier associated with the data.
 	 *
 	 * @param boolean $plural Whether to retrieve the plural identifier.
@@ -202,13 +414,26 @@ class List_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * Check if this list table has a registered configuration for an identifier.
+	 * Retrieve the configuration for the primary column.
 	 *
-	 * @param string $name The column identifier.
-	 * @return boolean
+	 * @return array
 	 */
-	public function has_column( $name ) {
-		return isset( $this->columns[ $name ] );
+	protected function get_primary_col() {
+		static $column;
+
+		if( ! isset( $column ) )
+			$column = $this->get_column_by( true, 'primary' );
+
+		return $column;
+	}
+
+	/**
+	 * Retrieve the number of rows to display per page from usermeta.
+	 *
+	 * @return int
+	 */
+	public function get_rows_per_page() {
+		return $this->get_items_per_page( $this->opt_per_page, 20 );
 	}
 
 	/**
@@ -234,56 +459,70 @@ class List_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * Retrieve the number of rows to display per page from usermeta.
+	 * {@inheritDoc}
 	 *
-	 * @return int
-	 */
-	public function get_rows_per_page() {
-		return $this->get_items_per_page( $this->opt_per_page, 20 );
-	}
-
-	/**
-	 * Retrieve an action configuration by identifier.
-	 *
-	 * @param string $name The action identifier.
-	 * @return array|null
-	 */
-	protected function get_action( $name ) {
-		foreach( $this->actions as $action ) {
-			if( $action['name'] === $name )
-				return $action;
-		}
-
-		return null;
-	}
-
-	/**
-	 * Execute action callback and hooks for the given action identifier. Redirects back to the
-	 * current URL with action-related query variables stripped off of the query string after all
-	 * hooks have completed.
-	 *
-	 * @param string $name
 	 * @return void
 	 */
-	public function run_action( $name ) {
-		$action = $this->get_action( $name );
-		$value  = null;
+	protected function get_sortable_columns() {
+		return array_map(
+			function( $column ) {
+				return [ $column['name'], ! empty( $column['primary'] ) ];
+			},
+			$this->filter_columns( [ 'sortable' => true ] )
+		);
+	}
 
-		// Bail on unconfigured action.
-		if( ! isset( $action ) )
-			return;
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @param \BerlinDB\Database\Row $item Shaped item.
+	 * @param string                 $column_name Current column identifier.
+	 * @param string                 $primary Primary column identifier.
+	 * @return void
+	 */
+	protected function handle_row_actions( $item, $column_name, $primary ) {
+		$actions = array_reduce(
+			$this->actions,
+			function( $actions, $action ) use( $item, $column_name, $primary ) {
+				if( empty( $action['row'] ) )
+					return $actions;
 
-		$data  = $_REQUEST['action_data'];
-		$value = $data;
+				$row_config = $action['row'];
 
-		if( isset( $action['callback'] ) )
-			$value = call_user_func( $action['callback'], $data, $name );
+				if(
+					( is_bool( $row_config ) && $row_config && $column_name === $primary )
+					|| ( is_string( $row_config ) && $column_name === $row_config )
+				) {
+					$primary = $this->get_primary_col();
 
-		do_action( 'bdbz_list_table_action', $name, $value );
-		do_action( "bdbz_list_table_action_{$name}", $value );
+					$actions[ $action['name'] ] = sprintf(
+						'<a href="%1$s">%2$s</a>',
+						$this->get_action_url(
+							$action,
+							[
+								$item->{$primary['name']},
+							]
+						),
+						$action['label']
+					);
+				}
 
-		\wp_safe_redirect( \remove_query_arg( [ 'action', 'action_data' ] ) );
-		exit;
+				return $actions;
+			},
+			[]
+		);
+
+		return $this->row_actions( $actions );
+	}
+
+	/**
+	 * Check if this list table has a registered configuration for an identifier.
+	 *
+	 * @param string $name The column identifier.
+	 * @return boolean
+	 */
+	public function has_column( $name ) {
+		return isset( $this->columns[ $name ] );
 	}
 
 	/**
@@ -335,271 +574,32 @@ class List_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * Retrieves bulk action configurations.
+	 * Execute action callback and hooks for the given action identifier. Redirects back to the
+	 * current URL with action-related query variables stripped off of the query string after all
+	 * hooks have completed.
 	 *
+	 * @param string $name
 	 * @return void
 	 */
-	protected function get_bulk_actions() {
-		return array_reduce(
-			$this->actions,
-			function( $actions, $action ) {
-				if( ! empty( $action['bulk'] ) )
-					$actions[ $action['name'] ] = $action['label'];
+	public function run_action( $name ) {
+		$action = $this->get_action( $name );
+		$value  = null;
 
-				return $actions;
-			},
-			[]
-		);
-	}
+		// Bail on unconfigured action.
+		if( ! isset( $action ) )
+			return;
 
-	/**
-	 * Retrieve the first column configuration with the specified key/value pair. If no key is
-	 * specified, defaults to matching against the column identifier.
-	 *
-	 * @param string $value The configuration property value to match against.
-	 * @param string $key The configuration property key to match against. Defaults to `name`.
-	 * @return array|null
-	 */
-	protected function get_column_by( $value, $key = 'name' ) {
-		$columns = array_values( $this->filter_columns( [ $key => $value ] ) );
+		$data  = $_REQUEST['action_data'];
+		$value = $data;
 
-		if( count( $columns ) )
-			return $columns[0];
+		if( isset( $action['callback'] ) )
+			$value = call_user_func( $action['callback'], $data, $name );
 
-		return null;
-	}
+		\do_action( 'bdbz_list_table_action', $name, $value );
+		\do_action( "bdbz_list_table_action_{$name}", $value );
 
-	/**
-	 * Retrieve column definitions that have properties matching a set of key/value pairs.
-	 *
-	 * @param array       $properties
-	 * @param string|null $field A property key.
-	 * @return array An associative array mapping column names to column configurations for matching columns. If $field is set,
-	 */
-	protected function filter_columns( $properties = [], $field = null ) {
-		$columns = $this->columns;
-
-		if( count( $properties ) ) {
-			$columns = array_filter(
-				$columns,
-				function( $column ) use( $properties ) {
-					foreach( $properties as $key => $value ) {
-						if( ! isset( $column[ $key ] ) || $column[ $key ] !== $value )
-							return false;
-					}
-
-					return true;
-				}
-			);
-		}
-
-		if( $field ) {
-			$columns = array_reduce(
-				$columns,
-				function( $fields, $column ) use( $field ) {
-					$fields[] = $column[ $field ];
-					return $fields;
-				},
-				[]
-			);
-		}
-
-		return $columns;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @param BerlinDB\Database\Row $item Shaped item object.
-	 * @param string                $column_name The column identifier.
-	 * @return mixed
-	 */
-	public function column_default( $item, $column_name ) {
-		$value  = isset( $item->$column_name ) ? $item->$column_name : null;
-		$column = $this->get_column_by( $column_name, 'name' );
-
-		if( $column ) {
-			if( isset( $column['value'] ) ) {
-				if( is_callable( $column['value'] ) )
-					$value = call_user_func( $column['value'], $value, $item, $column_name );
-				elseif( ! isset( $value ) )
-					$value = $column['value'];
-			}
-
-			if( ! isset( $value ) && isset( $column['default'] ) )
-				$value = $column['default'];
-		}
-
-		$value = \apply_filters( "bdb_list_table_field_value_{$column_name}", $value, $item, $column_name );
-
-		return $value;
-	}
-
-	/**
-	 * Checkbox column value callback. Prints the markup for row selection for the column identified
-	 * as `cb`.
-	 *
-	 * @param \BerlinDB\Database\Row $item Shaped item.
-	 * @return void
-	 */
-	protected function column_cb( $item ) {
-		$primary_column = $this->get_primary_column_name();
-		$item_key       = $item->$primary_column;
-		?>
-		<label class="screen-reader-text" for="cb-select-<?php echo $item_key; ?>">
-				<?php
-						/* translators: %s: Post title. */
-						printf( __( 'Select Item %s' ), $item_key );
-				?>
-		</label>
-		<input id="cb-select-<?php echo $item_key; ?>" type="checkbox" name="<?php echo $primary_column; ?>[]" value="<?php echo $item_key; ?>" />
-		<?php
-	}
-
-	protected function extra_tablenav( $which ) {
-		submit_button( __( 'Filter' ), '', 'filter_action', false, array( 'id' => 'post-query-submit' ) );
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @return array
-	 */
-	public function get_columns() {
-		$columns = [
-			'cb' => true,
-		];
-
-		foreach( $this->column_order as $name ) {
-			if( ! isset( $this->columns[ $name ] ) )
-				continue;
-
-			$columns[ $name ] = $this->columns[ $name ]['label'];
-		}
-
-		return $columns;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @return void
-	 */
-	protected function get_hidden_columns() {
-		return [];
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @return void
-	 */
-	protected function get_sortable_columns() {
-		return array_map(
-			function( $column ) {
-				return [ $column['name'], ! empty( $column['primary'] ) ];
-			},
-			$this->filter_columns( [ 'sortable' => true ] )
-		);
-	}
-
-	/**
-	 * Retrieve the configuration for the primary column.
-	 *
-	 * @return array
-	 */
-	protected function get_primary_col() {
-		static $column;
-
-		if( ! isset( $column ) )
-			$column = $this->get_column_by( true, 'primary' );
-
-		return $column;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @param \BerlinDB\Database\Row $item Shaped item.
-	 * @param string                 $column_name Current column identifier.
-	 * @param string                 $primary Primary column identifier.
-	 * @return void
-	 */
-	protected function handle_row_actions( $item, $column_name, $primary ) {
-		$actions = array_reduce(
-			$this->actions,
-			function( $actions, $action ) use( $item, $column_name, $primary ) {
-				if( empty( $action['row'] ) )
-					return $actions;
-
-				$row_config = $action['row'];
-
-				if(
-					( is_bool( $row_config ) && $row_config && $column_name === $primary )
-					|| ( is_string( $row_config ) && $column_name === $row_config )
-				) {
-					$primary = $this->get_primary_col();
-
-					$actions[ $action['name'] ] = sprintf(
-						'<a href="%1$s">%2$s</a>',
-						$this->get_action_url(
-							$action,
-							[
-								$item->{$primary['name']},
-							]
-						),
-						$action['label']
-					);
-				}
-
-				return $actions;
-			},
-			[]
-		);
-
-		return $this->row_actions( $actions );
-	}
-
-	/**
-	 * Constructs a URL which will execute a specified action with an optional payload.
-	 *
-	 * @param string|array|null $action_name Action identifier or configuration object.
-	 * @param  mixed            $data Data payload.
-	 * @return string The URL.
-	 */
-	public function get_action_url( $action_name = null, $data = null ) {
-		$url = '?' . $_SERVER['QUERY_STRING'];
-
-		if( isset( $action_name ) ) {
-			if( is_array( $action_name ) )
-				$action_name = $action_name['name'];
-
-			$url = \add_query_arg( 'action', $action_name, $url );
-		}
-
-		if( isset( $data ) ) {
-			$url = \add_query_arg(
-				'action_data',
-				$data,
-				$url
-			);
-		}
-
-		return $url;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 *
-	 * @return void
-	 */
-	protected function get_default_primary_column_name() {
-		$column = $this->get_primary_col();
-
-		if( isset( $column ) && isset( $column['name'] ) )
-			return $column['name'];
-
-		return parent::get_default_primary_column_name();
+		\wp_safe_redirect( \remove_query_arg( [ 'action', 'action_data' ] ) );
+		exit;
 	}
 
 	public static function key_to_name( $key ) {
